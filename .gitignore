@@ -1,0 +1,16 @@
+.venv/
+env/
+__pycache__/
+*.pyc
+.pytest_cache/
+tmp/
+data/raw/
+data/warehouse/
+output/run_log/
+output/quality/
+output/ads_export/
+output/dashboard.html
+output/dashboard_assets/
+*.log
+.idea/
+.vscode/

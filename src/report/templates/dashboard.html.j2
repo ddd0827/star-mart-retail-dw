@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ p.brand }} 连锁零售经营看板</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --surface-2: #f4f3ef;
+    --text: #0b0b0b;
+    --text-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --blue: #2a78d6;
+    --orange: #eb6834;
+    --good: #006300;
+    --bad: #d03b3b;
+    --shadow: 0 1px 2px rgba(11, 11, 11, 0.04), 0 8px 24px rgba(11, 11, 11, 0.04);
+    --radius: 14px;
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --surface-2: #222220;
+    --text: #ffffff;
+    --text-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --blue: #3987e5;
+    --orange: #d95926;
+    --good: #0ca30c;
+    --bad: #e66767;
+    --shadow: none;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: var(--page);
+    color: var(--text);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1440px; margin: 0 auto; padding: 28px 28px 56px; }
+  .topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
+  .brand-block h1 { margin: 2px 0 6px; font-size: clamp(24px, 2.4vw, 34px); font-weight: 650; letter-spacing: -0.02em; }
+  .eyebrow { margin: 0; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-weight: 650; }
+  .sub { margin: 0; color: var(--text-2); font-size: 13px; }
+  .top-actions { display: flex; align-items: center; gap: 10px; padding-top: 4px; }
+  .theme-btn {
+    appearance: none; border: 1px solid var(--border); background: var(--surface);
+    color: var(--text-2); border-radius: 999px; padding: 8px 14px; font: inherit; font-size: 13px;
+    cursor: pointer; transition: background .15s ease, color .15s ease;
+  }
+  .theme-btn:hover { background: var(--surface-2); color: var(--text); }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 20px;
+  }
+  .hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 28px; margin-bottom: 16px; }
+  .hero-label { margin: 4px 0 2px; color: var(--text-2); font-size: 14px; }
+  .hero-value { margin: 0; font-size: clamp(46px, 6vw, 72px); font-weight: 680; letter-spacing: -0.035em; line-height: 1.05; }
+  .hero-meta { margin: 10px 0 0; color: var(--text-2); font-size: 13px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .hero-side { display: grid; grid-template-columns: repeat(3, minmax(110px, 1fr)); gap: 18px; min-width: min(480px, 46%); }
+  .mini { padding: 2px 0; }
+  .mini .k { color: var(--muted); font-size: 12px; margin: 0 0 3px; }
+  .mini .v { margin: 0; font-size: 19px; font-weight: 650; }
+  .delta { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 650; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text-2); }
+  .delta.good { color: var(--good); }
+  .delta.bad { color: var(--bad); }
+  .delta.neutral { color: var(--text-2); }
+  .kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 16px; }
+  .kpi { min-width: 0; }
+  .kpi .label { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+  .kpi .value { margin: 0; font-size: 25px; font-weight: 660; letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kpi .foot { margin: 8px 0 0; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; color: var(--muted); font-size: 11px; }
+  .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+  .span-12 { grid-column: span 12; }
+  .span-8 { grid-column: span 8; }
+  .span-6 { grid-column: span 6; }
+  .span-4 { grid-column: span 4; }
+  .chart-card { display: flex; flex-direction: column; min-width: 0; }
+  .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 6px; }
+  .card-head h2 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
+  .card-head .cap { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+  .chart { width: 100%; height: 300px; }
+  .chart.tall { height: 330px; }
+  .chart.short { height: 270px; }
+  .empty { display: flex; align-items: center; justify-content: center; min-height: 180px; color: var(--muted); font-size: 13px; border: 1px dashed var(--axis); border-radius: 10px; background: var(--surface-2); }
+  details.data-table { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
+  details.data-table summary { cursor: pointer; color: var(--text-2); font-size: 12px; user-select: none; }
+  details.data-table summary:hover { color: var(--text); }
+  .table-wrap { overflow-x: auto; margin-top: 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; background: var(--surface-2); }
+  td { color: var(--text-2); }
+  tr:last-child td { border-bottom: 0; }
+  .footer { margin-top: 22px; color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+  .footer a { color: var(--text-2); text-decoration: none; border-bottom: 1px solid var(--border); }
+  .footer a:hover { color: var(--text); }
+  .links { display: flex; gap: 14px; flex-wrap: wrap; }
+  .note { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+  @media (max-width: 1180px) {
+    .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+    .span-8, .span-6, .span-4 { grid-column: span 12; }
+    .hero { align-items: flex-start; flex-direction: column; }
+    .hero-side { min-width: 0; width: 100%; }
+  }
+  @media (max-width: 680px) {
+    .wrap { padding: 18px 14px 40px; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .topbar { flex-direction: column; }
+    .kpi .value { font-size: 22px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+{% macro data_table(t) -%}
+<details class="data-table">
+  <summary>查看数据表</summary>
+  {% if t.rows %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr>{% for h in t.headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+      <tbody>
+      {% for row in t.rows %}
+        <tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty" style="margin-top:10px;min-height:80px;">暂无数据</p>
+  {% endif %}
+</details>
+{%- endmacro %}
+<div class="wrap">
+  <header class="topbar">
+    <div class="brand-block">
+      <p class="eyebrow">STAR-MART · RETAIL DATA WAREHOUSE</p>
+      <h1>{{ p.brand }} 连锁零售经营看板</h1>
+      <p class="sub">数据范围 {{ p.data_start }} ~ {{ p.data_end }} · 模拟业务数据 · 数据源：ADS 层</p>
+    </div>
+    <div class="top-actions">
+      <button class="theme-btn" id="themeToggle" type="button" aria-label="切换深浅色主题">切换深色</button>
+    </div>
+  </header>
+
+  <section class="card hero" aria-label="核心经营指标">
+    <div>
+      <p class="eyebrow">经营总览</p>
+      <p class="hero-label">{{ p.hero.label }}</p>
+      <p class="hero-value">{{ p.hero.value }}</p>
+      <p class="hero-meta"><span class="delta {{ p.hero.delta_cls }}">{{ p.hero.delta }}</span> {{ p.hero.note }}</p>
+    </div>
+    <div class="hero-side">
+      <div class="mini"><p class="k">日均成交会员（近30天）</p><p class="v">{{ p.summary.members_30d }}</p></div>
+      <div class="mini"><p class="k">新增会员（近30天）</p><p class="v">{{ p.summary.new_members_30d }}</p></div>
+      <div class="mini"><p class="k">线上 GMV（近30天）</p><p class="v">{{ p.summary.online_gmv_30d }}</p></div>
+    </div>
+  </section>
+
+  <section class="kpi-grid" aria-label="关键指标">
+    {% for k in p.kpis %}
+    <article class="card kpi">
+      <p class="label">{{ k.label }}</p>
+      <p class="value">{{ k.value }}</p>
+      <p class="foot"><span class="delta {{ k.delta_cls }}">{{ k.delta }}</span><span>{{ k.note }}</span></p>
+    </article>
+    {% endfor %}
+  </section>
+
+  <section class="grid">
+    <article class="card chart-card span-8">
+      <div class="card-head">
+        <div><h2>销售额趋势</h2><p class="cap">近 90 天日 GMV（含运费，未扣退款）</p></div>
+      </div>
+      <div id="trendChart" class="chart tall" role="img" aria-label="近90天销售额趋势折线图"></div>
+      {{ data_table(p.tables.trend) }}
+    </article>
+
+    <article class="card chart-card span-4">
+      <div class="card-head">
+        <div><h2>渠道结构</h2><p class="cap">近 6 个月线下与线上 GMV</p></div>
+      </div>
+      <div id="channelChart" class="chart tall" role="img" aria-label="线下与线上月度GMV堆叠柱状图"></div>
+      {{ data_table(p.tables.channel) }}
+    </article>
+
+    <article class="card chart-card span-6">
+      <div class="card-head">
+        <div><h2>品类结构</h2><p class="cap">近 30 天一级品类商品销售额</p></div>
+      </div>
+      <div id="categoryChart" class="chart" role="img" aria-label="一级品类销售额横向条形图"></div>
+      {{ data_table(p.tables.category) }}
+    </article>
+
+    <article class="card chart-card span-6">
+      <div class="card-head">
+        <div><h2>门店排行</h2><p class="cap">近 30 天 GMV Top 10（线下门店）</p></div>
+      </div>
+      <div id="storeChart" class="chart" role="img" aria-label="门店销售额横向条形图"></div>
+      {{ data_table(p.tables.store) }}
+    </article>
+
+    <article class="card chart-card span-6">
+      <div class="card-head">
+        <div><h2>线上转化漏斗</h2><p class="cap">近 30 天会话级阶段转化</p></div>
+      </div>
+      <div id="funnelChart" class="chart" role="img" aria-label="线上访问到支付漏斗图"></div>
+      {{ data_table(p.tables.funnel) }}
+    </article>
+
+    <article class="card chart-card span-6">
+      <div class="card-head">
+        <div><h2>会员 RFM 分层</h2><p class="cap">截至 {{ p.latest }} 的会员价值分层</p></div>
+      </div>
+      <div id="rfmChart" class="chart" role="img" aria-label="会员RFM分层人数条形图"></div>
+      {{ data_table(p.tables.rfm) }}
+    </article>
+
+    <article class="card chart-card span-12">
+      <div class="card-head">
+        <div><h2>库存周转</h2><p class="cap">最新日线下门店 30 日库存周转天数（越长越慢，Top 10）</p></div>
+      </div>
+      {% if p.charts.inventory['values'] %}
+      <div id="inventoryChart" class="chart short" role="img" aria-label="门店库存周转天数横向条形图"></div>
+      {% else %}
+      <div class="empty">该数据窗口尚未形成完整 30 日周转窗口，暂无库存周转结果。</div>
+      {% endif %}
+      {{ data_table(p.tables.inventory) }}
+    </article>
+
+    <article class="card chart-card span-12">
+      <div class="card-head">
+        <div><h2>促销效果</h2><p class="cap">较活动前 14 天渠道日均 GMV 的观察性对比（非因果推断）</p></div>
+      </div>
+      {% if p.charts.promotion['values'] %}
+      <div id="promotionChart" class="chart short" role="img" aria-label="促销活动增量GMV条形图"></div>
+      {% else %}
+      <div class="empty">当前数据窗口没有可评估的促销活动，或活动尚未形成基线窗口。</div>
+      {% endif %}
+      {{ data_table(p.tables.promotion) }}
+    </article>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div>更新于 {{ generated_at }} · 数据为模拟数据，仅用于数据开发演示。</div>
+      <div class="note">指标口径：GMV 为有效支付订单实付金额（含运费，不扣退款）；净销售额按退款发生日扣减退款；会员占比、退款率、库存周转等口径见 docs/metrics.md。看板只读取 ADS 导出文件。</div>
+    </div>
+    <div class="links" aria-label="数据下载">
+      <a href="ads_export/ads_operation_overview.csv">经营总览 CSV</a>
+      <a href="ads_export/ads_store_performance.csv">门店明细 CSV</a>
+      <a href="ads_export/ads_member_rfm.csv">会员 RFM CSV</a>
+      <a href="ads_export/ads_inventory_turnover.csv">库存周转 CSV</a>
+    </div>
+  </footer>
+</div>
+
+<script src="dashboard_assets/echarts.min.js"></script>
+<script>
+const DASH = {{ data_json|safe }};
+
+const PALETTES = {
+  light: {
+    surface: '#fcfcfb', text: '#0b0b0b', secondary: '#52514e', muted: '#898781',
+    grid: '#e1e0d9', axis: '#c3c2b7', border: 'rgba(11,11,11,0.10)',
+    blue: '#2a78d6', orange: '#eb6834',
+    series: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'],
+    ordinal: ['#86b6ef', '#6da7ec', '#3987e5', '#256abf', '#184f95'],
+    good: '#006300', bad: '#d03b3b', wash: 'rgba(42,120,214,0.10)'
+  },
+  dark: {
+    surface: '#1a1a19', text: '#ffffff', secondary: '#c3c2b7', muted: '#898781',
+    grid: '#2c2c2a', axis: '#383835', border: 'rgba(255,255,255,0.10)',
+    blue: '#3987e5', orange: '#d95926',
+    series: ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767'],
+    ordinal: ['#b7d3f6', '#86b6ef', '#5598e7', '#2a78d6', '#184f95'],
+    good: '#0ca30c', bad: '#e66767', wash: 'rgba(57,135,229,0.16)'
+  }
+};
+
+function fmtInt(v) { return Number(v).toLocaleString('zh-CN'); }
+function fmtMoney(v, withUnit) {
+  v = Number(v);
+  const p = withUnit === false ? '' : '¥';
+  if (Math.abs(v) >= 1e8) return p + (v / 1e8).toFixed(2) + '亿';
+  if (Math.abs(v) >= 1e4) return p + (v / 1e4).toFixed(1) + '万';
+  return p + Math.round(v).toLocaleString('zh-CN');
+}
+function fmtPct(v, digits) {
+  if (v === null || v === undefined || Number.isNaN(Number(v))) return '—';
+  return (Number(v) * 100).toFixed(digits === undefined ? 1 : digits) + '%';
+}
+function baseText(c) { return { color: c.secondary, fontFamily: 'system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif' }; }
+function tooltip(c) {
+  return {
+    backgroundColor: c.surface, borderColor: c.border, borderWidth: 1,
+    textStyle: { color: c.text, fontSize: 12 },
+    extraCssText: 'box-shadow: 0 6px 24px rgba(0,0,0,.12); border-radius: 8px;'
+  };
+}
+function axis(c) {
+  return {
+    axisLine: { lineStyle: { color: c.axis, width: 1 } },
+    axisTick: { show: false },
+    axisLabel: { color: c.muted, fontSize: 11 },
+    splitLine: { show: true, lineStyle: { color: c.grid, width: 1, type: 'solid' } }
+  };
+}
+function moneyAxis(c) {
+  return {
+    ...axis(c),
+    axisLabel: { color: c.muted, fontSize: 11, formatter: (v) => fmtMoney(v, false) }
+  };
+}
+
+let charts = [];
+
+function disposeCharts() {
+  charts.forEach((ch) => ch.dispose());
+  charts = [];
+}
+
+function renderCharts(themeName) {
+  const c = PALETTES[themeName] || PALETTES.light;
+  disposeCharts();
+  const make = (id, option) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const ch = echarts.init(el, null, { renderer: 'canvas' });
+    ch.setOption(option);
+    charts.push(ch);
+  };
+
+  // 销售趋势（单系列，不显示图例；末端直接标注）
+  make('trendChart', {
+    animationDuration: 450,
+    textStyle: { fontFamily: 'system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif' },
+    grid: { left: 12, right: 74, top: 16, bottom: 22, containLabel: true },
+    tooltip: {
+      ...tooltip(c), trigger: 'axis',
+      axisPointer: { type: 'line', lineStyle: { color: c.axis, width: 1 } },
+      formatter: (items) => {
+        const i = items[0].dataIndex;
+        return `<b>${DASH.trend.labels[i]}</b><br>GMV：${fmtMoney(DASH.trend.gmv[i])}<br>订单量：${fmtInt(DASH.trend.orders[i])}`;
+      }
+    },
+    xAxis: { type: 'category', data: DASH.trend.labels, boundaryGap: false, ...axis(c), splitLine: { show: false } },
+    yAxis: { type: 'value', ...moneyAxis(c), splitLine: { lineStyle: { color: c.grid, type: 'solid' } } },
+    series: [{
+      name: 'GMV', type: 'line', data: DASH.trend.gmv, smooth: false,
+      symbol: 'circle', symbolSize: 8, showSymbol: false,
+      lineStyle: { width: 2, color: c.blue, cap: 'round', join: 'round' },
+      itemStyle: { color: c.blue, borderColor: c.surface, borderWidth: 2 },
+      areaStyle: { color: c.wash },
+      endLabel: { show: true, color: c.secondary, fontSize: 12, formatter: (p) => fmtMoney(p.value) }
+    }]
+  });
+
+  // 渠道结构（两系列堆叠，必须图例）
+  make('channelChart', {
+    animationDuration: 450,
+    grid: { left: 12, right: 18, top: 42, bottom: 22, containLabel: true },
+    legend: { top: 0, right: 0, icon: 'roundRect', itemWidth: 10, itemHeight: 10, textStyle: { color: c.secondary, fontSize: 12 } },
+    tooltip: {
+      ...tooltip(c), trigger: 'axis',
+      axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(127,127,127,0.10)' } },
+      formatter: (items) => {
+        const i = items[0].dataIndex, off = DASH.channel.offline[i], on = DASH.channel.online[i];
+        return `<b>${DASH.channel.labels[i]}</b><br>线下：${fmtMoney(off)}<br>线上：${fmtMoney(on)}<br>合计：${fmtMoney(off + on)}`;
+      }
+    },
+    xAxis: { type: 'category', data: DASH.channel.labels, ...axis(c), splitLine: { show: false } },
+    yAxis: { type: 'value', ...moneyAxis(c) },
+    series: [
+      { name: '线下', type: 'bar', stack: 'gmv', data: DASH.channel.offline, barWidth: 22,
+        itemStyle: { color: c.blue, borderColor: c.surface, borderWidth: 2 } },
+      { name: '线上', type: 'bar', stack: 'gmv', data: DASH.channel.online, barWidth: 22,
+        itemStyle: { color: c.orange, borderColor: c.surface, borderWidth: 2, borderRadius: [4, 4, 0, 0] } }
+    ]
+  });
+
+  // 品类结构（单系列横向条形，直接标注）
+  make('categoryChart', {
+    animationDuration: 450,
+    grid: { left: 12, right: 56, top: 12, bottom: 16, containLabel: true },
+    tooltip: {
+      ...tooltip(c), trigger: 'item',
+      formatter: (p) => `<b>${p.name}</b><br>销售额：${fmtMoney(p.value)}<br>占比：${fmtPct(DASH.category.shares[p.dataIndex])}`
+    },
+    xAxis: { type: 'value', ...moneyAxis(c) },
+    yAxis: { type: 'category', data: DASH.category.labels, inverse: true, ...axis(c), splitLine: { show: false },
+             axisLabel: { color: c.secondary, fontSize: 12, width: 100, overflow: 'truncate' } },
+    series: [{
+      type: 'bar', data: DASH.category.values, barWidth: 20,
+      itemStyle: { color: c.blue, borderRadius: [0, 4, 4, 0] },
+      label: { show: true, position: 'right', color: c.secondary, fontSize: 11, formatter: (p) => fmtMoney(p.value) }
+    }]
+  });
+
+  // 门店排行（单系列横向条形）
+  make('storeChart', {
+    animationDuration: 450,
+    grid: { left: 12, right: 64, top: 12, bottom: 16, containLabel: true },
+    tooltip: {
+      ...tooltip(c), trigger: 'item',
+      formatter: (p) => {
+        const comp = DASH.store.completion[p.dataIndex];
+        const compValid = comp !== null && comp !== undefined && !Number.isNaN(Number(comp));
+        return `<b>${p.name}</b><br>近30天 GMV：${fmtMoney(p.value)}` + (compValid ? `<br>MTD 达成率：${fmtPct(comp)}` : '');
+      }
+    },
+    xAxis: { type: 'value', ...moneyAxis(c) },
+    yAxis: { type: 'category', data: DASH.store.labels, inverse: true, ...axis(c), splitLine: { show: false },
+             axisLabel: { color: c.secondary, fontSize: 12, width: 118, overflow: 'truncate' } },
+    series: [{
+      type: 'bar', data: DASH.store.values, barWidth: 18,
+      itemStyle: { color: c.blue, borderRadius: [0, 4, 4, 0] },
+      label: { show: true, position: 'right', color: c.secondary, fontSize: 11, formatter: (p) => fmtMoney(p.value) }
+    }]
+  });
+
+  // 线上漏斗（序数蓝色阶）
+  make('funnelChart', {
+    animationDuration: 450,
+    grid: { left: 12, right: 70, top: 12, bottom: 16, containLabel: true },
+    tooltip: {
+      ...tooltip(c), trigger: 'item',
+      formatter: (p) => `<b>${p.name}</b><br>会话数：${fmtInt(p.value)}`
+    },
+    xAxis: { type: 'value', ...axis(c), axisLabel: { color: c.muted, fontSize: 11, formatter: (v) => fmtInt(v) } },
+    yAxis: { type: 'category', data: DASH.funnel.labels, inverse: true, ...axis(c), splitLine: { show: false },
+             axisLabel: { color: c.secondary, fontSize: 12 } },
+    series: [{
+      type: 'bar', barWidth: 20,
+      data: DASH.funnel.values.map((v, i) => ({
+        value: v,
+        itemStyle: { color: c.ordinal[Math.min(i, c.ordinal.length - 1)], borderRadius: [0, 4, 4, 0] }
+      })),
+      label: { show: true, position: 'right', color: c.secondary, fontSize: 11, formatter: (p) => fmtInt(p.value) }
+    }]
+  });
+
+  // RFM 分层（单系列横向条形）
+  make('rfmChart', {
+    animationDuration: 450,
+    grid: { left: 12, right: 48, top: 12, bottom: 16, containLabel: true },
+    tooltip: {
+      ...tooltip(c), trigger: 'item',
+      formatter: (p) => `<b>${p.name}</b><br>会员数：${fmtInt(p.value)}<br>累计净消费：${fmtMoney(DASH.rfm.monetary[p.dataIndex])}`
+    },
+    xAxis: { type: 'value', ...axis(c), axisLabel: { color: c.muted, fontSize: 11, formatter: (v) => fmtInt(v) } },
+    yAxis: { type: 'category', data: DASH.rfm.labels, inverse: true, ...axis(c), splitLine: { show: false },
+             axisLabel: { color: c.secondary, fontSize: 12, width: 108, overflow: 'truncate' } },
+    series: [{
+      type: 'bar', data: DASH.rfm.counts, barWidth: 18,
+      itemStyle: { color: c.blue, borderRadius: [0, 4, 4, 0] },
+      label: { show: true, position: 'right', color: c.secondary, fontSize: 11, formatter: (p) => fmtInt(p.value) }
+    }]
+  });
+
+  // 库存周转（单系列横向条形）
+  if (document.getElementById('inventoryChart')) {
+    make('inventoryChart', {
+      animationDuration: 450,
+      grid: { left: 12, right: 64, top: 12, bottom: 16, containLabel: true },
+      tooltip: {
+        ...tooltip(c), trigger: 'item',
+        formatter: (p) => `<b>${p.name}</b><br>30日库存周转：${Number(p.value).toFixed(1)} 天`
+      },
+      xAxis: { type: 'value', ...axis(c), axisLabel: { color: c.muted, fontSize: 11, formatter: (v) => v + ' 天' } },
+      yAxis: { type: 'category', data: DASH.inventory.labels, inverse: true, ...axis(c), splitLine: { show: false },
+               axisLabel: { color: c.secondary, fontSize: 12, width: 140, overflow: 'truncate' } },
+      series: [{
+        type: 'bar', data: DASH.inventory.values, barWidth: 18,
+        itemStyle: { color: c.blue, borderRadius: [0, 4, 4, 0] },
+        label: { show: true, position: 'right', color: c.secondary, fontSize: 11, formatter: (p) => Number(p.value).toFixed(1) + ' 天' }
+      }]
+    });
+  }
+
+  // 促销效果（单系列横向条形）
+  if (document.getElementById('promotionChart')) {
+    make('promotionChart', {
+      animationDuration: 450,
+      grid: { left: 12, right: 74, top: 12, bottom: 16, containLabel: true },
+      tooltip: {
+        ...tooltip(c), trigger: 'item',
+        formatter: (p) => `<b>${p.name}</b><br>增量 GMV：${fmtMoney(p.value)}`
+      },
+      xAxis: { type: 'value', ...moneyAxis(c) },
+      yAxis: { type: 'category', data: DASH.promotion.labels, inverse: true, ...axis(c), splitLine: { show: false },
+               axisLabel: { color: c.secondary, fontSize: 12, width: 200, overflow: 'truncate' } },
+      series: [{
+        type: 'bar', data: DASH.promotion.values, barWidth: 18,
+        itemStyle: { color: c.blue, borderRadius: [0, 4, 4, 0] },
+        label: { show: true, position: 'right', color: c.secondary, fontSize: 11, formatter: (p) => fmtMoney(p.value) }
+      }]
+    });
+  }
+}
+
+const THEME_KEY = 'star-mart-dashboard-theme';
+function preferredTheme() {
+  const saved = window.localStorage.getItem(THEME_KEY);
+  if (saved === 'light' || saved === 'dark') return saved;
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  const btn = document.getElementById('themeToggle');
+  if (btn) btn.textContent = theme === 'dark' ? '切换浅色' : '切换深色';
+  renderCharts(theme);
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const theme = preferredTheme();
+  applyTheme(theme);
+  const btn = document.getElementById('themeToggle');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+      window.localStorage.setItem(THEME_KEY, next);
+      applyTheme(next);
+    });
+  }
+  window.addEventListener('resize', () => charts.forEach((ch) => ch.resize()));
+});
+</script>
+</body>
+</html>

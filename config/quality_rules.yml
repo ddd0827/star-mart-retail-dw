@@ -1,0 +1,317 @@
+# ============================================================
+# 数据质量规则
+# type: sql  —— sql 返回违规行数，> threshold 即失败
+# type: min_rows —— sql 返回行数，< min 即失败
+# severity: critical(阻断) / warning(告警)
+# stage: 执行该规则时已注册的层视图（all 表示最终校验）
+# ============================================================
+rules:
+  # ---------- DWD 主键与重复 ----------
+  - name: 订单主键唯一
+    stage: dwd
+    table: dwd_order_info
+    type: sql
+    severity: critical
+    sql: |
+      SELECT COUNT(*) FROM (
+        SELECT order_id FROM dwd_order_info GROUP BY order_id HAVING COUNT(*) > 1
+      ) t
+
+  - name: 订单行主键唯一
+    stage: dwd
+    table: dwd_order_detail
+    type: sql
+    severity: critical
+    sql: |
+      SELECT COUNT(*) FROM (
+        SELECT order_id, line_id FROM dwd_order_detail GROUP BY order_id, line_id HAVING COUNT(*) > 1
+      ) t
+
+  - name: 支付流水主键唯一
+    stage: dwd
+    table: dwd_payment
+    type: sql
+    severity: critical
+    sql: |
+      SELECT COUNT(*) FROM (
+        SELECT payment_id FROM dwd_payment GROUP BY payment_id HAVING COUNT(*) > 1
+      ) t
+
+  - name: 退款流水主键唯一
+    stage: dwd
+    table: dwd_refund
+    type: sql
+    severity: critical
+    sql: |
+      SELECT COUNT(*) FROM (
+        SELECT refund_id FROM dwd_refund GROUP BY refund_id HAVING COUNT(*) > 1
+      ) t
+
+  - name: 线上会话主键唯一
+    stage: dwd
+    table: dwd_online_session
+    type: sql
+    severity: critical
+    sql: |
+      SELECT COUNT(*) FROM (
+        SELECT session_id FROM dwd_online_session GROUP BY session_id HAVING COUNT(*) > 1
+      ) t
+
+  - name: 行为事件主键唯一
+    stage: dwd
+    table: dwd_behavior_event
+    type: sql
+    severity: critical
+    sql: |
+      SELECT COUNT(*) FROM (
+        SELECT event_id FROM dwd_behavior_event GROUP BY event_id HAVING COUNT(*) > 1
+      ) t
+
+  - name: 库存快照主键唯一
+    stage: dwd
+    table: dwd_inventory_snapshot
+    type: sql
+    severity: critical
+    sql: |
+      SELECT COUNT(*) FROM (
+        SELECT dt, location_id, product_id FROM dwd_inventory_snapshot
+        GROUP BY dt, location_id, product_id HAVING COUNT(*) > 1
+      ) t
+
+  # ---------- 金融对账 ----------
+  - name: 有效订单金额与成功支付一致
+    stage: dwd
+    table: dwd_order_info
+    type: sql
+    severity: critical
+    sql: |
+      SELECT COUNT(*) FROM (
+        SELECT o.order_id
+        FROM dwd_order_info o
+        LEFT JOIN (
+          SELECT order_id, SUM(pay_amount) AS pay_sum
+          FROM dwd_payment
+          WHERE payment_status = '成功' AND pay_amount > 0
+          GROUP BY order_id
+        ) p ON o.order_id = p.order_id
+        WHERE o.is_paid = 1
+          AND ABS(o.paid_amount - COALESCE(p.pay_sum, 0)) > 0.02
+      ) t
+
+  - name: 有效订单行金额加运费等于实付
+    stage: dwd
+    table: dwd_order_detail
+    type: sql
+    severity: critical
+    sql: |
+      SELECT COUNT(*) FROM (
+        SELECT o.order_id
+        FROM dwd_order_info o
+        LEFT JOIN (
+          SELECT order_id, SUM(quantity * sale_price) AS line_amount
+          FROM dwd_order_detail
+          GROUP BY order_id
+        ) d ON o.order_id = d.order_id
+        WHERE o.is_paid = 1
+          AND ABS(COALESCE(d.line_amount, 0) + o.shipping_fee - o.paid_amount) > 0.05
+      ) t
+
+  - name: 退款金额不得超过对应订单行金额
+    stage: dwd
+    table: dwd_refund
+    type: sql
+    severity: critical
+    sql: |
+      SELECT COUNT(*) FROM (
+        SELECT r.order_id, r.line_id,
+               SUM(r.refund_amount) AS refunded,
+               MAX(COALESCE(d.line_amount, 0)) AS line_amount
+        FROM dwd_refund r
+        LEFT JOIN dwd_order_detail d
+          ON r.order_id = d.order_id AND r.line_id = d.line_id
+        WHERE r.refund_status = '已完成' AND r.line_id IS NOT NULL
+        GROUP BY r.order_id, r.line_id
+        HAVING SUM(r.refund_amount) > MAX(COALESCE(d.line_amount, 0)) + 0.02
+      ) t
+
+  - name: 有效订单金额非负
+    stage: dwd
+    table: dwd_order_info
+    type: sql
+    severity: critical
+    sql: |
+      SELECT COUNT(*) FROM dwd_order_info
+      WHERE is_paid = 1 AND paid_amount < 0
+
+  # ---------- 业务一致性 ----------
+  - name: 线上支付会话数等于线上有效订单数
+    stage: dwd
+    table: dwd_online_session
+    type: sql
+    severity: critical
+    sql: |
+      SELECT COUNT(*) FROM (
+        SELECT COALESCE(s.dt, o.dt) AS dt, s.pay_cnt, o.order_cnt
+        FROM (
+          SELECT dt, COUNT(*) AS pay_cnt
+          FROM dwd_online_session WHERE is_paid = 1 GROUP BY dt
+        ) s
+        FULL OUTER JOIN (
+          SELECT dt, COUNT(*) AS order_cnt
+          FROM dwd_order_info
+          WHERE is_paid = 1 AND channel_type = '线上'
+          GROUP BY dt
+        ) o ON s.dt = o.dt
+        WHERE COALESCE(s.pay_cnt, 0) <> COALESCE(o.order_cnt, 0)
+      ) t
+
+  - name: 线下订单数不超过门店客流
+    stage: dwd
+    table: dwd_order_info
+    type: sql
+    severity: critical
+    sql: |
+      SELECT COUNT(*) FROM (
+        SELECT o.dt, o.store_id
+        FROM dwd_order_info o
+        WHERE o.is_paid = 1 AND o.is_offline = 1
+        GROUP BY o.dt, o.store_id
+        HAVING COUNT(*) > (
+          SELECT COALESCE(SUM(t.traffic_in), 0)
+          FROM dwd_store_traffic t
+          WHERE t.dt = o.dt AND t.store_id = o.store_id
+        )
+      ) t
+
+  - name: 会员注册日期不晚于下单日期
+    stage: dwd
+    table: dwd_order_info
+    type: sql
+    severity: warning
+    sql: |
+      SELECT COUNT(*) FROM dwd_order_info o
+      JOIN dim_member m ON o.sk_member = m.sk_member
+      WHERE o.is_paid = 1 AND o.is_member = 1 AND m.register_date > o.order_date
+
+  - name: 在线商品曝光事件具备商品ID
+    stage: dwd
+    table: dwd_behavior_event
+    type: sql
+    severity: warning
+    sql: |
+      SELECT COUNT(*) FROM dwd_behavior_event
+      WHERE event_type IN ('商品曝光','商品点击','加入购物车') AND sk_product = -1
+
+  # ---------- 库存守恒 ----------
+  - name: 库存期末不得为负
+    stage: dwd
+    table: dwd_inventory_snapshot
+    type: sql
+    severity: critical
+    sql: |
+      SELECT COUNT(*) FROM dwd_inventory_snapshot WHERE end_qty < 0
+
+  - name: 库存守恒等式
+    stage: dwd
+    table: dwd_inventory_snapshot
+    type: sql
+    severity: critical
+    sql: |
+      SELECT COUNT(*) FROM dwd_inventory_snapshot
+      WHERE begin_qty + purchase_in_qty - sale_qty + return_qty + adjustment_qty <> end_qty
+
+  # ---------- DWS / ADS 一致性 ----------
+  - name: DWS门店日汇总GMV不低于0
+    stage: dws
+    table: dws_trade_store_day
+    type: sql
+    severity: critical
+    sql: |
+      SELECT COUNT(*) FROM dws_trade_store_day WHERE gmv < 0 OR order_cnt < 0
+
+  - name: DWS门店日GMV与DWD重算一致
+    stage: dws
+    table: dws_trade_store_day
+    type: sql
+    severity: critical
+    sql: |
+      SELECT COUNT(*) FROM (
+        SELECT * FROM (
+          SELECT d.dt, d.store_id, d.gmv, COALESCE(o.gmv, 0) AS expected
+          FROM (
+            SELECT dt, store_id, SUM(gmv) AS gmv
+            FROM dws_trade_store_day GROUP BY dt, store_id
+          ) d
+          LEFT JOIN (
+            SELECT dt, store_id, SUM(paid_amount) AS gmv
+            FROM dwd_order_info WHERE is_paid = 1 GROUP BY dt, store_id
+          ) o ON d.dt = o.dt AND d.store_id <=> o.store_id
+        ) x
+        WHERE ABS(x.gmv - x.expected) > 0.05
+      ) t
+
+  - name: ADS经营总览GMV与DWS重算一致
+    stage: ads
+    table: ads_operation_overview
+    type: sql
+    severity: critical
+    sql: |
+      SELECT COUNT(*) FROM (
+        SELECT * FROM (
+          SELECT a.dt, a.gmv, COALESCE(d.gmv, 0) AS expected
+          FROM ads_operation_overview a
+          LEFT JOIN (
+            SELECT dt, SUM(gmv) AS gmv FROM dws_trade_store_day GROUP BY dt
+          ) d ON a.dt = d.dt
+        ) x
+        WHERE ABS(x.gmv - x.expected) > 0.05
+      ) t
+
+  - name: ADS经营总览行数非空
+    stage: ads
+    table: ads_operation_overview
+    type: min_rows
+    min: 1
+    severity: critical
+    sql: SELECT COUNT(*) FROM ads_operation_overview
+
+  # ---------- 各层非空 ----------
+  - name: DWD行为事件非空
+    stage: dwd
+    table: dwd_behavior_event
+    type: min_rows
+    min: 1
+    severity: critical
+    sql: SELECT COUNT(*) FROM dwd_behavior_event
+
+  - name: DWD库存快照非空
+    stage: dwd
+    table: dwd_inventory_snapshot
+    type: min_rows
+    min: 1
+    severity: critical
+    sql: SELECT COUNT(*) FROM dwd_inventory_snapshot
+
+  - name: ADS RFM非空
+    stage: ads
+    table: ads_member_rfm
+    type: min_rows
+    min: 1000
+    severity: critical
+    sql: SELECT COUNT(*) FROM ads_member_rfm
+
+  - name: ADS留存非空
+    stage: ads
+    table: ads_member_retention
+    type: min_rows
+    min: 1
+    severity: warning
+    sql: SELECT COUNT(*) FROM ads_member_retention
+
+  - name: ADS线上漏斗非空
+    stage: ads
+    table: ads_online_funnel
+    type: min_rows
+    min: 1
+    severity: critical
+    sql: SELECT COUNT(*) FROM ads_online_funnel

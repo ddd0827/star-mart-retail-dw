@@ -1,0 +1,66 @@
+# ============================================================
+# 星选生活连锁零售数仓 —— 项目配置
+# ============================================================
+project:
+  name: star_mart_retail_dw
+  brand: 星选生活
+  brand_en: STAR-MART
+  seed: 20261017
+  timezone: Asia/Shanghai
+
+paths:
+  raw: data/raw
+  warehouse: data/warehouse
+  output: output
+  ads_export: output/ads_export
+  quality: output/quality
+  run_log: output/run_log
+  dashboard_assets: output/dashboard_assets
+  env: env
+  tmp: tmp
+
+dates:
+  # 180 天，截止昨日（2026-10-17）
+  start: "2026-04-20"
+  end: "2026-10-16"
+
+scale:
+  offline_stores: 24
+  online_warehouses: 1
+  members: 100000
+  skus: 1500
+  online_sessions_per_day: 9300
+  # 用于校验的期望量级（非精确目标）
+  expected_paid_orders: 500000
+  expected_behavior_events: 10000000
+
+generator:
+  store_traffic_factor: 0.92           # 校准门店客流，使有效订单规模约 50 万
+  offline_member_order_ratio: 0.65     # 线下会员订单占比
+  online_member_session_ratio: 0.65    # 线上会话绑定会员比例
+  online_base_pay_rate: 0.075          # 线上会话支付转化率
+  refund_order_ratio: 0.05             # 订单退款比例（按渠道/品类浮动）
+  partial_refund_ratio: 0.30           # 部分退款占比
+  dirty_injection: true
+  dirty_ratios:
+    duplicate_order: 0.002
+    duplicate_payment: 0.002
+    duplicate_event: 0.002
+    null_store: 0.001
+    unknown_member: 0.001
+    invalid_qty_canceled: 0.05         # 仅注入到取消订单明细
+    mixed_timestamp: 0.005
+    negative_product_price: 0.001
+    duplicate_member: 0.001
+    whitespace_dimension: 0.01
+
+spark:
+  master: "local[4]"
+  driver_memory: "5g"
+  shuffle_partitions: 32
+  max_records_per_file: 1000000
+  parquet_compression: snappy
+
+pipeline:
+  fail_on_critical_dq: true
+  lookback_days_daily: 21          # 覆盖退款延迟（最长 14 天）+ 订单窗口
