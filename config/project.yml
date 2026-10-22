@@ -16,6 +16,7 @@ paths:
   quality: output/quality
   run_log: output/run_log
   dashboard_assets: output/dashboard_assets
+  powerbi: output/powerbi
   env: env
   tmp: tmp
 

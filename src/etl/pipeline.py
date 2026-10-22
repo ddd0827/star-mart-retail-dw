@@ -41,6 +41,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lookback-days", type=int, default=None, help="daily 模式回溯天数")
     parser.add_argument("--skip-quality", action="store_true")
     parser.add_argument("--skip-export", action="store_true")
+    parser.add_argument("--skip-powerbi", action="store_true")
     parser.add_argument("--skip-dashboard", action="store_true")
     return parser.parse_args()
 
@@ -139,6 +140,10 @@ def main() -> int:
         if not args.skip_export:
             from src.report.export import export_ads
             stage("EXPORT", lambda: export_ads(spark, base_config))
+
+        if not args.skip_powerbi:
+            from src.report.powerbi import export_powerbi
+            stage("POWERBI", lambda: export_powerbi(base_config))
 
         if not args.skip_dashboard:
             from src.report.dashboard import build_dashboard

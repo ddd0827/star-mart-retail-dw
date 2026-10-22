@@ -1,0 +1,128 @@
+-- ============================================================
+-- 星选生活 STAR-MART 连锁零售数仓 · Power BI 度量
+-- 使用方式：Power BI Desktop → 建模 → 新建度量值，逐条粘贴。
+-- 前提：dim_date 已标记为日期表；关系见 output/powerbi/_manifest.json
+-- ============================================================
+
+-- ---------- 经营总览（事实表：fact_operation_day） ----------
+
+GMV = SUM ( fact_operation_day[gmv] )
+
+净销售额 = SUM ( fact_operation_day[net_sales_amount] )
+
+退款金额 = SUM ( fact_operation_day[refund_amount] )
+
+退款率 = DIVIDE ( [退款金额], [GMV] )
+
+订单数 = SUM ( fact_operation_day[order_cnt] )
+
+客单价 = DIVIDE ( [GMV], [订单数] )
+
+毛利率 = DIVIDE ( SUM ( fact_operation_day[gross_profit] ), [净销售额] )
+
+会员GMV占比 =
+DIVIDE (
+    SUMX ( fact_operation_day, fact_operation_day[gmv] * fact_operation_day[member_gmv_ratio] ),
+    [GMV]
+)
+
+线上GMV占比 =
+DIVIDE ( SUM ( fact_operation_day[online_gmv] ), [GMV] )
+
+GMV日环比 =
+VAR CurrentGMV = [GMV]
+VAR PreviousGMV =
+    CALCULATE ( [GMV], DATEADD ( dim_date[date], -1, DAY ) )
+RETURN
+    DIVIDE ( CurrentGMV - PreviousGMV, PreviousGMV )
+
+MTD_GMV = TOTALMTD ( [GMV], dim_date[date] )
+
+-- ---------- 门店（事实表：fact_store_day） ----------
+
+门店GMV = SUM ( fact_store_day[gmv] )
+
+门店订单数 = SUM ( fact_store_day[order_cnt] )
+
+门店客单价 = DIVIDE ( [门店GMV], [门店订单数] )
+
+门店转化率 = DIVIDE ( [门店订单数], SUM ( fact_store_day[traffic_in] ) )
+
+MTD目标达成率 =
+VAR LastDate = LASTDATE ( dim_date[date] )
+RETURN
+    DIVIDE (
+        CALCULATE ( SUM ( fact_store_day[mtd_gmv] ), LastDate ),
+        CALCULATE ( SUM ( fact_store_day[mtd_target] ), LastDate )
+    )
+
+-- ---------- 会员（事实表：fact_member_rfm / fact_retention / fact_repurchase） ----------
+
+RFM会员数 = COUNTROWS ( fact_member_rfm )
+
+高价值会员数 =
+CALCULATE (
+    [RFM会员数],
+    fact_member_rfm[rfm_segment] IN { "重要价值客户", "重要保持客户" }
+)
+
+高价值会员占比 = DIVIDE ( [高价值会员数], [RFM会员数] )
+
+次月留存率 =
+CALCULATE (
+    DIVIDE ( SUM ( fact_retention[retained_members] ), SUM ( fact_retention[cohort_size] ) ),
+    fact_retention[months_diff] = 1
+)
+
+复购率 =
+DIVIDE ( SUM ( fact_repurchase[repeat_buyers] ), SUM ( fact_repurchase[monthly_buyers] ) )
+
+复购率_30日 =
+DIVIDE ( SUM ( fact_repurchase[repeat_30d_buyers] ), SUM ( fact_repurchase[monthly_buyers] ) )
+
+-- ---------- 线上漏斗（事实表：fact_funnel_day） ----------
+
+访问会话 = SUM ( fact_funnel_day[visit_sessions] )
+
+支付会话 = SUM ( fact_funnel_day[pay_sessions] )
+
+访问支付转化率 = DIVIDE ( [支付会话], [访问会话] )
+
+漏斗线上GMV = SUM ( fact_funnel_day[online_gmv] )
+
+-- ---------- 库存（事实表：fact_inventory_day，快照指标取窗口最后一天） ----------
+
+平均库存金额 =
+VAR LastDate = LASTDATE ( dim_date[date] )
+RETURN
+    CALCULATE ( SUM ( fact_inventory_day[avg_stock_value_30d] ), LastDate )
+
+COGS_30日 =
+VAR LastDate = LASTDATE ( dim_date[date] )
+RETURN
+    CALCULATE ( SUM ( fact_inventory_day[cogs_30d] ), LastDate )
+
+库存周转天数 =
+DIVIDE ( [平均库存金额], [COGS_30日] ) * 30
+
+缺货率 =
+VAR LastDate = LASTDATE ( dim_date[date] )
+RETURN
+    CALCULATE (
+        DIVIDE ( SUM ( fact_inventory_day[stockout_sku_cnt] ), SUM ( fact_inventory_day[sku_cnt] ) ),
+        LastDate
+    )
+
+-- ---------- 促销（事实表：fact_promotion） ----------
+
+活动增量GMV = SUM ( fact_promotion[incremental_gmv] )
+
+促销让利 = SUM ( fact_promotion[promo_discount] )
+
+促销ROI = DIVIDE ( SUM ( fact_promotion[incremental_gross_profit] ), [促销让利] )
+
+-- ---------- 品类 / 商品（事实表：fact_category_day / fact_product_snapshot） ----------
+
+品类销售额 = SUM ( fact_category_day[sales_amount] )
+
+商品销售额_快照 = SUM ( fact_product_snapshot[sales_amount] )

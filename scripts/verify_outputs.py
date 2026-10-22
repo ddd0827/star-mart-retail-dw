@@ -84,6 +84,23 @@ def main() -> int:
             fail(f"缺少看板产物: {path}")
     print("[PASS] 看板 HTML、本地 ECharts 与预览图均存在")
 
+    powerbi_dir = ROOT / "output" / "powerbi"
+    for path in (
+        powerbi_dir / "data" / "dim_date.csv",
+        powerbi_dir / "data" / "fact_operation_day.csv",
+        powerbi_dir / "data" / "fact_member_rfm.csv",
+        powerbi_dir / "theme" / "star_mart_theme.json",
+        powerbi_dir / "measures.dax",
+        powerbi_dir / "_manifest.json",
+    ):
+        if not path.exists():
+            fail(f"缺少 Power BI 产物: {path}")
+    pb_manifest = json.loads((powerbi_dir / "_manifest.json").read_text(encoding="utf-8"))
+    if len(pb_manifest.get("row_counts", {})) != 17:
+        fail(f"Power BI 数据集表数量异常: {len(pb_manifest.get('row_counts', {}))}，期望 17")
+    print(f"[PASS] Power BI 数据集：{len(pb_manifest['row_counts'])} 张表、"
+          f"{len(pb_manifest.get('relationships', []))} 条关系、主题与 DAX 度量齐全")
+
     print("-" * 60)
     print("验收通过：数据链路、对账、质量与展示产物完整。")
     return 0

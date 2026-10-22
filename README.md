@@ -1,6 +1,6 @@
 # 星选生活 STAR-MART 连锁零售数据仓库
 
-按真实连锁零售业务流程构建的数据开发项目：从模拟业务源系统出发，使用 **Spark / Spark SQL / Parquet** 构建分层数据仓库（ODS → DIM/DWD → DWS → ADS），配套数据质量校验、ETL 调度日志、ADS 导出与离线可打开的 HTML 经营看板。
+按真实连锁零售业务流程构建的数据开发项目：从模拟业务源系统出发，使用 **Spark / Spark SQL / Parquet** 构建分层数据仓库（ODS → DIM/DWD → DWS → ADS），配套数据质量校验、ETL 调度日志、ADS 导出、离线可打开的 HTML 经营看板，以及可导入 **Power BI** 的星型数据集与 DAX 度量。
 
 > 数据均为模拟数据（虚构品牌、门店、商品、会员），不包含真实个人信息，仅用于数据开发与教学演示。
 
@@ -12,6 +12,7 @@
 - **可对账的数据**：订单金额 = 行金额 + 运费 = 支付金额；退款 ≤ 行金额；支付会话 = 线上订单；库存期初 + 入库 − 销售 + 退货 ± 调整 = 期末。
 - **数据质量规则引擎**：主键唯一、金额对账、流量约束、库存守恒、DWS/ADS 重算一致性；critical 失败阻断调度。
 - **业务看板**：经营总览、销售趋势、渠道结构、品类结构、门店排行、线上漏斗、RFM、库存周转、促销效果；ECharts 本地资源，断网可打开。
+- **Power BI 交付**：ADS 结果整理为 7 张维度表 + 10 张事实表的星型数据集，配套 Power BI 主题、DAX 度量与建模说明，可直接导入制作交互式报表。
 - **真实感细节**：节假日/大促/会员日、周末效应、品类季节、商品长尾、会员等级、支付渠道、退款原因与延迟、门店铺货差异、混合时间格式与少量脏数据。
 
 ## 2. 技术栈
@@ -23,6 +24,7 @@
 | 模拟数据 | Python 3.11、NumPy、pandas |
 | 配置 / 模板 | YAML、Jinja2 |
 | 可视化 | ECharts 5（本地 JS，离线） |
+| BI / 语义模型 | Power BI（CSV 星型数据集、DAX、主题） |
 | 测试 | pytest |
 | 运行环境 | Windows 11、项目内 JDK 17、Hadoop winutils |
 
@@ -35,7 +37,7 @@ raw CSV（模拟源系统）
   → DWD（订单/订单行/支付/退款/库存/客流/会话/行为/采购）
   → DWS（门店日/渠道日/SKU日/会员日/线上漏斗日/库存SKU日/活动日）
   → ADS（经营总览/门店/品类/商品/RFM/留存/复购/库存周转/漏斗/促销）
-  → CSV/JSON + 静态看板
+  → CSV/JSON + 静态看板 + Power BI 数据集
 ```
 
 详见 [docs/architecture.md](docs/architecture.md)。
@@ -108,8 +110,17 @@ scripts\run_pipeline.ps1 --mode full
 
 - 经营看板：`output/dashboard.html`（双击打开，无需启动服务；ECharts 本地加载，可离线）
 - ADS 结果：`output/ads_export/`（每张表同时输出 CSV 与 JSON；CSV 为 UTF-8 BOM，Excel 可直接打开）
+- Power BI 数据集：`output/powerbi/`（星型 CSV、主题、DAX 与导入说明）
 - 质量报告：`output/quality/dq_report_latest.csv`
 - 调度日志：`output/run_log/etl_run_latest.json` 与 `pipeline_*.log`
+
+### 5.5 Power BI 数据集
+
+```powershell
+.venv\Scripts\python.exe -m src.report.powerbi
+```
+
+输出 7 张维度表、10 张事实表、主题 JSON 与 `measures.dax`。Power BI Desktop 导入步骤、关系定义与报表页建议见 [docs/powerbi.md](docs/powerbi.md)。
 
 ## 6. 项目结构
 
@@ -127,16 +138,17 @@ scripts\run_pipeline.ps1 --mode full
 │   ├── generator/                # 业务数据模拟：主数据/客流/线上/订单/库存/脏数据
 │   ├── etl/                      # ODS/DIM/DWD/DWS/ADS/流水线调度
 │   ├── sql/                      # DWD/DWS/ADS Spark SQL
-│   └── report/                   # ADS 导出、看板生成、ECharts 资源
+│   └── report/                   # ADS 导出、看板、Power BI 数据集、ECharts 资源
 ├── docs/
 │   ├── business_process.md       # 业务流程与模拟规则
 │   ├── architecture.md           # 架构、分区、调度、生产化
 │   ├── data_model.md             # 总线矩阵、表设计、关系
-│   └── metrics.md                # 指标口径唯一权威定义
+│   ├── metrics.md                # 指标口径唯一权威定义
+│   └── powerbi.md                # Power BI 导入、关系、DAX 与报表页建议
 ├── data/
 │   ├── raw/                      # 模拟源系统（生成）
 │   └── warehouse/                # ODS/DIM/DWD/DWS/ADS Parquet
-├── output/                       # 看板、CSV、质量报告、运行日志
+├── output/                       # 看板、CSV、Power BI 数据集、质量报告、运行日志
 ├── tests/
 └── requirements.txt
 ```
@@ -172,6 +184,7 @@ scripts\run_pipeline.ps1 --mode full
 - 生产环境建议迁移到 Linux + YARN/Kubernetes，使用 Hive Metastore / Delta Lake、Airflow 调度、Trino/ClickHouse + BI 工具。
 - 模拟数据不代表真实业务结论；促销 ROI 仅作观察性对比；数据窗口末期存在退款右删失。
 - 看板只读取 ADS 导出文件，不直接访问 DWD，保证展示口径与 ADS 一致。
+- Power BI 交付为可导入的 CSV 星型数据集、主题与 DAX 度量；构建环境未安装 Power BI Desktop，`.pbix` 需在装有 Power BI Desktop 的机器上按 [docs/powerbi.md](docs/powerbi.md) 建模保存。
 
 ## 10. 实测结果
 
@@ -221,6 +234,7 @@ ADS 行数：
 - 调度日志：[`output/run_log/etl_run_latest.json`](output/run_log/etl_run_latest.json)
 - 日增量验收：[`output/run_log/etl_run_latest_daily.json`](output/run_log/etl_run_latest_daily.json)
 - ADS 导出：[`output/ads_export/`](output/ads_export/)（CSV + JSON）
+- Power BI 数据集：[`output/powerbi/`](output/powerbi/)（17 张表 + 主题 + DAX）
 
 **幂等与增量验收**：对目标日 2026-10-16 执行 `--mode daily`（run_id `20261017_223914`），重算最近 21 天并向前多取 14 天订单用于退款回挂；与全量结果对比，GMV、订单量、退款额、净销售额、客单价、MTD 逐日差异均为 0，品类结构行数恢复为 8,459 行。full 与 daily 的调度日志分别写入 `etl_run_latest.json` / `etl_run_latest_daily.json`。生产化部署与 Airflow 示例见 [docs/architecture.md](docs/architecture.md)。
 <!-- RESULTS_END -->

@@ -61,7 +61,8 @@ class Config:
         return p if p.is_absolute() else self.root / p
 
     def ensure_dirs(self) -> None:
-        for key in ("raw", "warehouse", "output", "ads_export", "quality", "run_log", "dashboard_assets", "tmp"):
+        for key in ("raw", "warehouse", "output", "ads_export", "quality", "run_log",
+                    "dashboard_assets", "powerbi", "tmp"):
             self.path(key).mkdir(parents=True, exist_ok=True)
         for layer in ("ods", "dim", "dwd", "dws", "ads"):
             (self.path("warehouse") / layer).mkdir(parents=True, exist_ok=True)

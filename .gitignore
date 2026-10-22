@@ -11,6 +11,7 @@ output/quality/
 output/ads_export/
 output/dashboard.html
 output/dashboard_assets/
+output/powerbi/
 *.log
 .idea/
 .vscode/
